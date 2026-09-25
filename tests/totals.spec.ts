@@ -46,6 +46,26 @@ describe('computeTotals', () => {
     expect(totals.totalPollutionPerMinute).toBeGreaterThan(0);
   });
 
+  it('aggregates processed (crafted) item throughput separately from raw resources', () => {
+    const overrides: OverrideMap = new Map();
+    const root = buildProductionTree('engine-unit', 1, gameData, overrides);
+    const totals = computeTotals(root);
+
+    // iron-plate is needed via three separate branches: iron-gear-wheel (1/s * 2), pipe
+    // (2/s * 1), and steel-plate (1/s * 5, since engine-unit also needs 1 steel-plate/s) ->
+    // 2 + 2 + 5 = 9 iron-plate/s combined, even though the tree draws iron-plate three times.
+    const ironPlate = totals.processedItems.find((p) => p.itemId === 'iron-plate');
+    expect(ironPlate).toBeDefined();
+    expect(ironPlate!.ratePerSec).toBeCloseTo(9, 5);
+
+    // Mined/raw items belong only in rawResources, not processedItems, and vice versa.
+    expect(totals.processedItems.find((p) => p.itemId === 'iron-ore')).toBeUndefined();
+    expect(totals.rawResources.find((r) => r.itemId === 'iron-plate')).toBeUndefined();
+
+    // The root item itself is a crafted/processed item too.
+    expect(totals.processedItems.find((p) => p.itemId === 'engine-unit')?.ratePerSec).toBeCloseTo(1, 5);
+  });
+
   it('rounds a single node up to the next whole building', () => {
     const overrides: OverrideMap = new Map();
     const root = buildProductionTree('automation-science-pack', 1, gameData, overrides);

@@ -31,6 +31,34 @@ function row(gameData: GameData, iconId: string, name: string, qualityId: string
   return el;
 }
 
+function appendRateList(
+  container: HTMLElement,
+  gameData: GameData,
+  title: string,
+  entries: { itemId: string; ratePerSec: number }[],
+  emptyText: string,
+): void {
+  const heading = document.createElement('h4');
+  heading.textContent = title;
+  container.appendChild(heading);
+
+  const list = document.createElement('div');
+  list.className = 'fpt-summary__list';
+  if (entries.length === 0) {
+    const none = document.createElement('p');
+    none.className = 'fpt-summary__empty';
+    none.textContent = emptyText;
+    list.appendChild(none);
+  }
+  for (const entry of entries) {
+    const item = gameData.items.get(entry.itemId);
+    list.appendChild(
+      row(gameData, item?.icon ?? entry.itemId, item?.name ?? titleCase(entry.itemId), 'normal', formatRate(entry.ratePerSec)),
+    );
+  }
+  container.appendChild(list);
+}
+
 export function createSummaryPanel(): SummaryPanel {
   const container = document.createElement('div');
   container.className = 'fpt-summary';
@@ -81,24 +109,8 @@ export function createSummaryPanel(): SummaryPanel {
     }
     container.appendChild(machinesList);
 
-    const rawHeading = document.createElement('h4');
-    rawHeading.textContent = 'Raw resources';
-    container.appendChild(rawHeading);
-    const rawList = document.createElement('div');
-    rawList.className = 'fpt-summary__list';
-    if (totals.rawResources.length === 0) {
-      const none = document.createElement('p');
-      none.className = 'fpt-summary__empty';
-      none.textContent = 'None required.';
-      rawList.appendChild(none);
-    }
-    for (const r of totals.rawResources) {
-      const item = gameData.items.get(r.itemId);
-      rawList.appendChild(
-        row(gameData, item?.icon ?? r.itemId, item?.name ?? titleCase(r.itemId), 'normal', formatRate(r.ratePerSec)),
-      );
-    }
-    container.appendChild(rawList);
+    appendRateList(container, gameData, 'Raw resources', totals.rawResources, 'None required.');
+    appendRateList(container, gameData, 'Processed resources (total throughput)', totals.processedItems, 'None.');
   }
 
   return { el: container, update: render };

@@ -21,26 +21,50 @@ export function createSearchSelect(gameData: GameData, onSelect: (itemId: string
   dropdown.className = 'fpt-search__dropdown';
   dropdown.hidden = true;
 
-  // Only items that can actually be produced by some recipe make sense as a search target.
+  // Only craftable, physical items make sense as a search target: exclude technology/research
+  // entries (Factorio's tech tree is modeled as its own "item" per technology, produced by a lab
+  // recipe that consumes science packs - e.g. "automation-science-pack-technology" - which would
+  // otherwise show up alongside, and confusingly share a display name with, the real item).
   const searchableItems: ItemDef[] = [...gameData.items.values()]
-    .filter((item) => gameData.recipesByOutput.has(item.id))
+    .filter((item) => gameData.recipesByOutput.has(item.id) && item.category !== 'technology')
     .sort((a, b) => a.name.localeCompare(b.name));
+
+  let currentResults: ItemDef[] = [];
+  let rowEls: HTMLButtonElement[] = [];
+  let activeIndex = -1;
+
+  function selectItem(item: ItemDef): void {
+    input.value = item.name;
+    dropdown.hidden = true;
+    onSelect(item.id);
+  }
+
+  function setActiveIndex(index: number): void {
+    if (rowEls.length === 0) {
+      activeIndex = -1;
+      return;
+    }
+    activeIndex = Math.max(0, Math.min(index, rowEls.length - 1));
+    for (const [i, el] of rowEls.entries()) el.classList.toggle('is-active', i === activeIndex);
+    rowEls[activeIndex].scrollIntoView({ block: 'nearest' });
+  }
 
   function renderResults(query: string): void {
     dropdown.replaceChildren();
+    rowEls = [];
     const q = query.trim().toLowerCase();
-    const results = (q ? searchableItems.filter((i) => i.name.toLowerCase().includes(q)) : searchableItems).slice(
+    currentResults = (q ? searchableItems.filter((i) => i.name.toLowerCase().includes(q)) : searchableItems).slice(
       0,
       40,
     );
 
-    if (results.length === 0) {
+    if (currentResults.length === 0) {
       const empty = document.createElement('div');
       empty.className = 'fpt-search__empty';
       empty.textContent = 'No items found';
       dropdown.appendChild(empty);
     } else {
-      for (const item of results) {
+      for (const item of currentResults) {
         const row = document.createElement('button');
         row.type = 'button';
         row.className = 'fpt-search__row';
@@ -48,15 +72,14 @@ export function createSearchSelect(gameData: GameData, onSelect: (itemId: string
         const label = document.createElement('span');
         label.textContent = item.name;
         row.appendChild(label);
-        row.addEventListener('click', () => {
-          input.value = item.name;
-          dropdown.hidden = true;
-          onSelect(item.id);
-        });
+        row.addEventListener('mouseenter', () => setActiveIndex(rowEls.indexOf(row)));
+        row.addEventListener('click', () => selectItem(item));
         dropdown.appendChild(row);
+        rowEls.push(row);
       }
     }
     dropdown.hidden = false;
+    setActiveIndex(0);
   }
 
   input.addEventListener('focus', () => renderResults(input.value));
@@ -65,6 +88,25 @@ export function createSearchSelect(gameData: GameData, onSelect: (itemId: string
     if (e.key === 'Escape') {
       dropdown.hidden = true;
       input.blur();
+      return;
+    }
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (dropdown.hidden) renderResults(input.value);
+      else setActiveIndex(activeIndex + 1);
+      return;
+    }
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (dropdown.hidden) renderResults(input.value);
+      else setActiveIndex(activeIndex - 1);
+      return;
+    }
+    if (e.key === 'Enter') {
+      if (!dropdown.hidden && activeIndex >= 0 && currentResults[activeIndex]) {
+        e.preventDefault();
+        selectItem(currentResults[activeIndex]);
+      }
     }
   });
   document.addEventListener('click', (e) => {

@@ -103,8 +103,14 @@ body,
   font-size: 13.5px;
 }
 
-.fpt-search__row:hover {
+.fpt-search__row:hover,
+.fpt-search__row.is-active {
   background: var(--fpt-bg-raised);
+}
+
+.fpt-search__row.is-active {
+  outline: 1px solid var(--fpt-accent);
+  outline-offset: -1px;
 }
 
 .fpt-search__empty {

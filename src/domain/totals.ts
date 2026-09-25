@@ -16,9 +16,18 @@ export interface RawResourceTotal {
   ratePerSec: number;
 }
 
+export interface ProcessedItemTotal {
+  itemId: string;
+  ratePerSec: number;
+}
+
 export interface ProductionTotals {
   machines: MachineTotal[];
   rawResources: RawResourceTotal[];
+  /** Every crafted (non-raw, non-mined) item in the tree, with its combined throughput across
+   *  every branch it's needed in - e.g. "iron plate: 10/s" even though the tree draws iron plate
+   *  as several separate nodes. */
+  processedItems: ProcessedItemTotal[];
   totalPowerKw: number;
   totalPollutionPerMinute: number;
 }
@@ -26,6 +35,7 @@ export interface ProductionTotals {
 export function computeTotals(root: ProductionNode): ProductionTotals {
   const machineMap = new Map<string, MachineTotal>();
   const rawMap = new Map<string, number>();
+  const processedMap = new Map<string, number>();
   let totalPowerKw = 0;
   let totalPollutionPerMinute = 0;
 
@@ -46,8 +56,11 @@ export function computeTotals(root: ProductionNode): ProductionTotals {
         });
     }
 
-    if (node.isRaw || node.recipe?.flags.has('mining')) {
+    const isMined = node.recipe?.flags.has('mining') ?? false;
+    if (node.isRaw || isMined) {
       rawMap.set(node.itemId, (rawMap.get(node.itemId) ?? 0) + node.ratePerSec);
+    } else if (node.recipe) {
+      processedMap.set(node.itemId, (processedMap.get(node.itemId) ?? 0) + node.ratePerSec);
     }
 
     for (const child of node.children) visit(child);
@@ -63,5 +76,9 @@ export function computeTotals(root: ProductionNode): ProductionTotals {
     .map(([itemId, ratePerSec]) => ({ itemId, ratePerSec }))
     .sort((a, b) => b.ratePerSec - a.ratePerSec);
 
-  return { machines, rawResources, totalPowerKw, totalPollutionPerMinute };
+  const processedItems = [...processedMap.entries()]
+    .map(([itemId, ratePerSec]) => ({ itemId, ratePerSec }))
+    .sort((a, b) => b.ratePerSec - a.ratePerSec);
+
+  return { machines, rawResources, processedItems, totalPowerKw, totalPollutionPerMinute };
 }
