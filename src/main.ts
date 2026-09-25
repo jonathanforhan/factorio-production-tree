@@ -2,7 +2,9 @@ import { buildProductionTree, type ProductionNode } from './domain/graph';
 import { loadGameData } from './domain/loadData';
 import { computeTotals } from './domain/totals';
 import { createInitialState, Store, type AppState } from './state/store';
+import { loadPreferredMachines, savePreferredMachines } from './state/preferences';
 import { decodeStateFromHash, syncStateToUrl } from './state/url';
+import { createDefaultBuildingsControl } from './ui/defaultBuildingsControl';
 import { createNodeEditorPanel } from './ui/nodeEditorPanel';
 import { createQuantityInput } from './ui/quantityInput';
 import { createSearchSelect } from './ui/searchSelect';
@@ -32,9 +34,16 @@ async function main(): Promise<void> {
   loadingEl.remove();
 
   const urlState = decodeStateFromHash(window.location.hash);
+  const preferredMachines = loadPreferredMachines();
   const initial: AppState = urlState
-    ? { itemId: urlState.itemId, ratePerSec: urlState.ratePerSec, overrides: urlState.overrides, selectedPath: null }
-    : createInitialState();
+    ? {
+        itemId: urlState.itemId,
+        ratePerSec: urlState.ratePerSec,
+        overrides: urlState.overrides,
+        selectedPath: null,
+        preferredMachines,
+      }
+    : { ...createInitialState(), preferredMachines };
   const store = new Store(initial);
 
   // --- layout skeleton ---
@@ -43,16 +52,27 @@ async function main(): Promise<void> {
 
   const headerEl = document.createElement('header');
   headerEl.className = 'fpt-header';
+  const titleWrap = document.createElement('div');
+  titleWrap.className = 'fpt-header__title-wrap';
   const titleEl = document.createElement('h1');
   titleEl.className = 'fpt-header__title';
   titleEl.textContent = 'Factorio Production Tree';
+  const versionEl = document.createElement('span');
+  versionEl.className = 'fpt-header__version';
+  versionEl.textContent = `v${gameData.version}`;
+  titleWrap.append(titleEl, versionEl);
 
   const searchSelect = createSearchSelect(gameData, (itemId) => store.setItem(itemId));
   const quantityInput = createQuantityInput(store.getState().ratePerSec, (rate) => store.setRate(rate));
+  const defaultBuildingsControl = createDefaultBuildingsControl(gameData, (familyId, machineId) => {
+    store.setPreferredMachine(familyId, machineId);
+    savePreferredMachines(store.getState().preferredMachines);
+  });
+  defaultBuildingsControl.update(initial.preferredMachines);
   const controlsEl = document.createElement('div');
   controlsEl.className = 'fpt-header__controls';
-  controlsEl.append(searchSelect.el, quantityInput.el);
-  headerEl.append(titleEl, controlsEl);
+  controlsEl.append(searchSelect.el, quantityInput.el, defaultBuildingsControl.el);
+  headerEl.append(titleWrap, controlsEl);
 
   const mainEl = document.createElement('main');
   mainEl.className = 'fpt-main';
@@ -82,6 +102,8 @@ async function main(): Promise<void> {
   let currentRoot: ProductionNode | null = null;
 
   function recompute(state: AppState): void {
+    defaultBuildingsControl.update(state.preferredMachines);
+
     if (!state.itemId) {
       currentRoot = null;
       treeView.render(null, gameData, null);
@@ -90,7 +112,8 @@ async function main(): Promise<void> {
       return;
     }
 
-    currentRoot = buildProductionTree(state.itemId, state.ratePerSec, gameData, state.overrides);
+    const preferredMachineIds = Object.values(state.preferredMachines);
+    currentRoot = buildProductionTree(state.itemId, state.ratePerSec, gameData, state.overrides, preferredMachineIds);
     const totals = computeTotals(currentRoot);
 
     treeView.render(currentRoot, gameData, state.selectedPath);

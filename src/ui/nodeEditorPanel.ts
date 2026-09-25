@@ -130,7 +130,7 @@ export function createNodeEditorPanel(onPatch: PatchFn, onReset: ResetFn, onClos
       for (const quality of gameData.qualities) {
         const btn = document.createElement('button');
         btn.type = 'button';
-        btn.className = 'fpt-editor__quality-btn';
+        btn.className = `fpt-editor__quality-btn fpt-editor__quality-btn--${quality.id}`;
         btn.classList.toggle('is-active', quality.id === node.qualityId);
         btn.textContent = quality.name;
         btn.addEventListener('click', () => onPatch(node.path, { quality: quality.id }));

@@ -68,11 +68,32 @@ describe('buildProductionTree', () => {
     expect(ironPlate.machineId).toBe('electric-furnace');
   });
 
+  it('applies a global preferred-machine choice to every un-overridden node it can produce', () => {
+    const overrides: OverrideMap = new Map();
+    const withPreference = buildProductionTree('automation-science-pack', 1, gameData, overrides, [
+      'assembling-machine-3',
+    ]);
+
+    // Both assembling steps (root + iron-gear-wheel) should pick up the preference...
+    expect(withPreference.machineId).toBe('assembling-machine-3');
+    expect(find(withPreference, 'iron-gear-wheel').machineId).toBe('assembling-machine-3');
+    // ...while steps that don't use an assembler (furnaces, drills) are unaffected.
+    expect(find(withPreference, 'copper-plate').machineId).toBe('stone-furnace');
+
+    // A preference should never override an explicit per-branch choice.
+    const ironGearPath = withPreference.path + '/iron-gear-wheel';
+    overrides.set(ironGearPath, { machineId: 'assembling-machine-1' });
+    const withOverrideWinning = buildProductionTree('automation-science-pack', 1, gameData, overrides, [
+      'assembling-machine-3',
+    ]);
+    expect(find(withOverrideWinning, 'iron-gear-wheel').machineId).toBe('assembling-machine-1');
+  });
+
   it('stops recursion on a recipe cycle instead of looping forever', () => {
     // sulfuric-acid consumes iron-plate; iron-plate's default recipe doesn't loop back, so
     // synthesize a cyclic override to prove the guard works without depending on a real loop.
     const overrides: OverrideMap = new Map();
-    const root = buildProductionTree('iron-plate', 1, gameData, overrides, 'iron-plate', new Set(['iron-plate']));
+    const root = buildProductionTree('iron-plate', 1, gameData, overrides, [], 'iron-plate', new Set(['iron-plate']));
     expect(root.truncatedCycle).toBe(true);
     expect(root.children).toHaveLength(0);
   });

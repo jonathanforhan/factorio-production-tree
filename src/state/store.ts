@@ -9,6 +9,10 @@ export interface AppState {
   overrides: OverrideMap;
   /** Path of the branch currently open in the editor panel; not persisted to the URL. */
   selectedPath: string | null;
+  /** Global "always default to this building" choice per machine family id (see
+   *  domain/machineFamilies.ts); persisted to localStorage, not to the shareable URL - it's a
+   *  personal preference about how you like to play, not part of a specific tree. */
+  preferredMachines: Record<string, string>;
 }
 
 export function createInitialState(): AppState {
@@ -17,6 +21,7 @@ export function createInitialState(): AppState {
     ratePerSec: 1,
     overrides: new Map(),
     selectedPath: null,
+    preferredMachines: {},
   };
 }
 
@@ -55,6 +60,14 @@ export class Store {
 
   setSelectedPath(path: string | null): void {
     this.state = { ...this.state, selectedPath: path };
+    this.emit();
+  }
+
+  setPreferredMachine(familyId: string, machineId: string | null): void {
+    const preferredMachines = { ...this.state.preferredMachines };
+    if (machineId) preferredMachines[familyId] = machineId;
+    else delete preferredMachines[familyId];
+    this.state = { ...this.state, preferredMachines };
     this.emit();
   }
 

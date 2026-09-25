@@ -14,10 +14,14 @@
   --fpt-raw: #6fae5c;
   --fpt-cycle: #c94f4f;
 
-  --fpt-quality-uncommon: #5db35d;
-  --fpt-quality-rare: #4a9fe0;
-  --fpt-quality-epic: #b06fe0;
-  --fpt-quality-legendary: #e0b23c;
+  /* Factorio's own quality-tier hues (wube/factorio-data quality/prototypes/quality.lua),
+     brightened a bit for legibility as UI text/borders on a dark panel (the game's originals tint
+     a small icon ribbon, not text). Normal has no official tint in-game, so it's a plain gray. */
+  --fpt-quality-normal: #c0c4c9;
+  --fpt-quality-uncommon: #36d74e;
+  --fpt-quality-rare: #1e87eb;
+  --fpt-quality-epic: #b800ef;
+  --fpt-quality-legendary: #ef8c00;
 
   --fpt-radius: 6px;
   --fpt-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);

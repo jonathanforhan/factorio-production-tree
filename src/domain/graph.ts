@@ -91,6 +91,7 @@ export function buildProductionTree(
   ratePerSec: number,
   gameData: GameData,
   overrides: OverrideMap,
+  preferredMachineIds: readonly string[] = [],
   path: string = itemId,
   ancestors: ReadonlySet<string> = new Set(),
 ): ProductionNode {
@@ -102,7 +103,7 @@ export function buildProductionTree(
     return leafNode(path, itemId, ratePerSec, recipe, qualityId, ancestors.has(itemId));
   }
 
-  const machineId = override?.machineId ?? pickDefaultMachine(recipe, gameData);
+  const machineId = override?.machineId ?? pickDefaultMachine(recipe, gameData, preferredMachineIds);
   const machine = machineId ? gameData.items.get(machineId)?.machine : undefined;
   if (!machineId || !machine) {
     // e.g. passive recipes like spoilage that have no producing building at all.
@@ -135,7 +136,15 @@ export function buildProductionTree(
     const childRate = computeChildRate(ratePerSec, recipe, itemId, childId, effects);
     if (childRate <= 1e-9) continue;
     children.push(
-      buildProductionTree(childId, childRate, gameData, overrides, `${path}/${childId}`, nextAncestors),
+      buildProductionTree(
+        childId,
+        childRate,
+        gameData,
+        overrides,
+        preferredMachineIds,
+        `${path}/${childId}`,
+        nextAncestors,
+      ),
     );
   }
 

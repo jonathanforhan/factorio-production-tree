@@ -272,9 +272,19 @@ export function pickDefaultRecipe(itemId: string, gameData: GameData): RecipeDef
   return candidates[0];
 }
 
-/** Picks a producer for a recipe, preferring the game's own "minimum" preset ranking. */
-export function pickDefaultMachine(recipe: RecipeDef, gameData: GameData): string | undefined {
+/**
+ * Picks a producer for a recipe: the user's own preferred machine per family (if it can make this
+ * recipe) wins first, then the game's own "minimum" preset ranking, then whatever's first.
+ */
+export function pickDefaultMachine(
+  recipe: RecipeDef,
+  gameData: GameData,
+  preferredMachineIds: readonly string[] = [],
+): string | undefined {
   if (recipe.producers.length === 0) return undefined;
+  for (const preferredId of preferredMachineIds) {
+    if (recipe.producers.includes(preferredId)) return preferredId;
+  }
   for (const rankedId of gameData.defaultMachineRank) {
     if (recipe.producers.includes(rankedId)) return rankedId;
   }
