@@ -5,6 +5,7 @@ import type { ProductionTotals } from '../domain/totals';
 import type { GameData } from '../domain/types';
 import { formatNumber, formatPower, formatRate, titleCase } from './format';
 import { createIcon } from './icon';
+import { qualityOutlineColor } from './quality';
 
 export interface SummaryPanel {
   el: HTMLDivElement;
@@ -14,15 +15,16 @@ export interface SummaryPanel {
 function row(gameData: GameData, iconId: string, name: string, qualityId: string, value: string, title?: string) {
   const el = document.createElement('div');
   el.className = 'fpt-summary__row';
-  el.appendChild(createIcon(gameData, iconId, 24));
+  const icon = createIcon(gameData, iconId, 24);
+  const outline = qualityOutlineColor(qualityId);
+  if (outline) {
+    icon.style.border = `2px solid ${outline}`;
+    icon.style.borderRadius = '4px';
+  }
+  el.appendChild(icon);
   const label = document.createElement('span');
   label.className = 'fpt-summary__label';
   label.textContent = name;
-  if (qualityId !== 'normal') {
-    const badge = document.createElement('span');
-    badge.className = `fpt-quality-dot fpt-quality-dot--${qualityId}`;
-    label.appendChild(badge);
-  }
   const valueEl = document.createElement('span');
   valueEl.className = 'fpt-summary__count';
   valueEl.textContent = value;

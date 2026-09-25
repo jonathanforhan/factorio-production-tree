@@ -362,17 +362,27 @@ body,
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
+  gap: 6px;
   width: 100%;
   height: 100%;
+  padding: 0 8px;
   background: var(--fpt-bg-raised);
-  border: 1px solid var(--fpt-border-strong);
-  border-radius: 15px;
+  /* Outlined in the active quality's color (see quality.ts); plain border for normal quality. */
+  border: 2px solid var(--fpt-border-strong);
+  border-radius: 9px;
   cursor: pointer;
+  overflow: hidden;
 }
 
 .fpt-badge:hover {
   border-color: var(--fpt-accent);
+}
+
+.fpt-badge__main {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
 }
 
 .fpt-badge__count {
@@ -381,27 +391,19 @@ body,
   color: var(--fpt-text);
 }
 
-.fpt-quality-dot {
-  position: absolute;
-  top: 2px;
-  right: 2px;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  display: inline-block;
+.fpt-badge__modules,
+.fpt-badge__beacon {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding-left: 6px;
+  border-left: 1px solid var(--fpt-border);
+  flex-shrink: 0;
 }
 
-.fpt-quality-dot--uncommon {
-  background: var(--fpt-quality-uncommon);
-}
-.fpt-quality-dot--rare {
-  background: var(--fpt-quality-rare);
-}
-.fpt-quality-dot--epic {
-  background: var(--fpt-quality-epic);
-}
-.fpt-quality-dot--legendary {
-  background: var(--fpt-quality-legendary);
+.fpt-badge__beacon-count {
+  font-size: 10px;
+  color: var(--fpt-text-dim);
 }
 
 /* --- tooltip --- */
