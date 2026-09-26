@@ -16,14 +16,23 @@ export function zeroEffects(): EffectTotals {
   return { consumption: 0, pollution: 0, productivity: 0, quality: 0, speed: 0 };
 }
 
+/** A single module slot's contents - each module is its own item instance with its own quality,
+ *  same as in the real game (a Legendary speed module can sit in a Normal-quality assembler). */
+export interface ModuleSlotConfig {
+  moduleId: string | null;
+  qualityId: string;
+}
+
 export interface NodeConfig {
   recipe: RecipeDef;
   machineId: string;
-  qualityId: string;
-  modules: (string | null)[];
+  machineQualityId: string;
+  modules: ModuleSlotConfig[];
   beaconId: string | null;
+  beaconQualityId: string;
   beaconCount: number;
   beaconModuleId: string | null;
+  beaconModuleQualityId: string;
 }
 
 function applyQualityOverride<T extends object>(
@@ -76,10 +85,10 @@ export function computeEffects(config: NodeConfig, gameData: GameData): EffectTo
 
   if (machine.baseEffect) addEffects(totals, machine.baseEffect, disallowed);
 
-  for (const moduleId of config.modules) {
-    const moduleDef = moduleId ? gameData.items.get(moduleId)?.module : undefined;
+  for (const slot of config.modules) {
+    const moduleDef = slot.moduleId ? gameData.items.get(slot.moduleId)?.module : undefined;
     if (!moduleDef) continue;
-    addEffects(totals, effectiveModuleEffects(moduleDef, config.qualityId), disallowed);
+    addEffects(totals, effectiveModuleEffects(moduleDef, slot.qualityId), disallowed);
   }
 
   if (config.beaconId && config.beaconCount > 0 && config.beaconModuleId) {
@@ -87,10 +96,15 @@ export function computeEffects(config: NodeConfig, gameData: GameData): EffectTo
     const beaconModule = gameData.items.get(config.beaconModuleId)?.module;
     if (beacon && beaconModule) {
       const beaconDisallowed = new Set<ModuleEffect>([...beacon.disallowedEffects, ...disallowed]);
-      const beaconStats = effectiveBeaconStats(beacon, config.qualityId);
+      const beaconStats = effectiveBeaconStats(beacon, config.beaconQualityId);
       const profileSum = sumBeaconProfile(beacon.profile, config.beaconCount);
       const multiplier = beaconStats.effectivity * beacon.moduleSlots * profileSum;
-      addEffects(totals, effectiveModuleEffects(beaconModule, config.qualityId), beaconDisallowed, multiplier);
+      addEffects(
+        totals,
+        effectiveModuleEffects(beaconModule, config.beaconModuleQualityId),
+        beaconDisallowed,
+        multiplier,
+      );
     }
   }
 
@@ -116,10 +130,10 @@ export function computeMachineRequirement(
   recipe: RecipeDef,
   itemId: string,
   machine: MachineDef,
-  qualityId: string,
+  machineQualityId: string,
   effects: EffectTotals,
 ): ProductionResult {
-  const machineStats = effectiveMachineStats(machine, qualityId);
+  const machineStats = effectiveMachineStats(machine, machineQualityId);
   const speedMultiplier = Math.max(0.01, 1 + effects.speed);
   const effectiveSpeed = machineStats.speed * speedMultiplier;
 

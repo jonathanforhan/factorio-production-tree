@@ -181,7 +181,7 @@ export function createTreeView(onSelect: (path: string) => void): TreeView {
         });
         const badgeEl = document.createElement('div');
         badgeEl.className = 'fpt-badge';
-        badgeEl.style.borderColor = qualityOutlineColor(node.qualityId);
+        badgeEl.style.borderColor = qualityOutlineColor(node.machineQualityId);
 
         const main = document.createElement('span');
         main.className = 'fpt-badge__main';
@@ -192,13 +192,19 @@ export function createTreeView(onSelect: (path: string) => void): TreeView {
         main.appendChild(count);
         badgeEl.appendChild(main);
 
-        const filledModules = node.modules.filter((m): m is string => !!m);
+        const filledModules = node.modules.filter((m) => !!m.moduleId);
         if (filledModules.length > 0) {
           const modulesEl = document.createElement('span');
           modulesEl.className = 'fpt-badge__modules';
-          for (const moduleId of filledModules) {
-            const moduleItem = gameData.items.get(moduleId);
-            modulesEl.appendChild(createIcon(gameData, moduleItem?.icon ?? moduleId, 14));
+          for (const slot of filledModules) {
+            const moduleItem = gameData.items.get(slot.moduleId!);
+            const moduleIcon = createIcon(gameData, moduleItem?.icon ?? slot.moduleId!, 14);
+            const outline = qualityOutlineColor(slot.qualityId);
+            if (outline) {
+              moduleIcon.style.border = `1.5px solid ${outline}`;
+              moduleIcon.style.borderRadius = '3px';
+            }
+            modulesEl.appendChild(moduleIcon);
           }
           badgeEl.appendChild(modulesEl);
         }
@@ -207,7 +213,13 @@ export function createTreeView(onSelect: (path: string) => void): TreeView {
           const beaconEl = document.createElement('span');
           beaconEl.className = 'fpt-badge__beacon';
           const beaconItem = gameData.items.get(node.beaconId);
-          beaconEl.appendChild(createIcon(gameData, beaconItem?.icon ?? node.beaconId, 14));
+          const beaconIcon = createIcon(gameData, beaconItem?.icon ?? node.beaconId, 14);
+          const beaconOutline = qualityOutlineColor(node.beaconQualityId);
+          if (beaconOutline) {
+            beaconIcon.style.border = `1.5px solid ${beaconOutline}`;
+            beaconIcon.style.borderRadius = '3px';
+          }
+          beaconEl.appendChild(beaconIcon);
           const beaconCount = document.createElement('span');
           beaconCount.className = 'fpt-badge__beacon-count';
           beaconCount.textContent = `×${node.beaconCount}`;
@@ -225,12 +237,17 @@ export function createTreeView(onSelect: (path: string) => void): TreeView {
           const heading = document.createElement('strong');
           heading.textContent = machine?.name ?? titleCase(node.machineId!);
           box.appendChild(heading);
-          if (node.qualityId !== 'normal') box.appendChild(tooltipRow('Quality', titleCase(node.qualityId)));
+          if (node.machineQualityId !== 'normal') {
+            box.appendChild(tooltipRow('Quality', titleCase(node.machineQualityId)));
+          }
           box.appendChild(tooltipRow('Buildings needed', `${Math.ceil(node.machineCount - 1e-9)}`));
           box.appendChild(tooltipRow('Exact', formatNumber(node.machineCount, 3)));
           box.appendChild(tooltipRow('Power', `${formatNumber(node.powerUsageKw, 1)} kW`));
           if (filledModules.length > 0) {
-            const names = filledModules.map((id) => gameData.items.get(id)?.name ?? titleCase(id));
+            const names = filledModules.map(
+              (slot) =>
+                `${gameData.items.get(slot.moduleId!)?.name ?? titleCase(slot.moduleId!)}${slot.qualityId !== 'normal' ? ` (${titleCase(slot.qualityId)})` : ''}`,
+            );
             box.appendChild(tooltipRow('Modules', names.join(', ')));
           }
           if (node.beaconCount > 0 && node.beaconId) {
@@ -238,10 +255,14 @@ export function createTreeView(onSelect: (path: string) => void): TreeView {
             const beaconModuleName = node.beaconModuleId
               ? (gameData.items.get(node.beaconModuleId)?.name ?? titleCase(node.beaconModuleId))
               : 'none';
+            const beaconModuleQualitySuffix =
+              node.beaconModuleId && node.beaconModuleQualityId !== 'normal'
+                ? ` (${titleCase(node.beaconModuleQualityId)})`
+                : '';
             box.appendChild(
               tooltipRow(
                 'Beacons',
-                `${node.beaconCount}× ${beaconItem?.name ?? titleCase(node.beaconId)} (${beaconModuleName})`,
+                `${node.beaconCount}× ${beaconItem?.name ?? titleCase(node.beaconId)} - ${beaconModuleName}${beaconModuleQualitySuffix}`,
               ),
             );
           }

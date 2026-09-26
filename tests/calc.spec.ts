@@ -48,11 +48,13 @@ describe('computeEffects', () => {
       {
         recipe,
         machineId: 'assembling-machine-1', // disallows productivity + quality
-        qualityId: 'normal',
-        modules: ['productivity-module'],
+        machineQualityId: 'normal',
+        modules: [{ moduleId: 'productivity-module', qualityId: 'normal' }],
         beaconId: null,
+        beaconQualityId: 'normal',
         beaconCount: 0,
         beaconModuleId: null,
+        beaconModuleQualityId: 'normal',
       },
       gameData,
     );
@@ -70,16 +72,62 @@ describe('computeEffects', () => {
       {
         recipe,
         machineId: 'assembling-machine-2',
-        qualityId: 'normal',
+        machineQualityId: 'normal',
         modules: [],
         beaconId: 'beacon',
+        beaconQualityId: 'normal',
         beaconCount: 2,
         beaconModuleId: 'speed-module',
+        beaconModuleQualityId: 'normal',
       },
       gameData,
     );
 
     const expectedSpeed = 0.2 * beacon.effectivity * beacon.moduleSlots * sumBeaconProfile(beacon.profile, 2);
+    expect(effects.speed).toBeCloseTo(expectedSpeed, 5);
+  });
+
+  it('uses each module slot\'s own quality independently of the machine\'s quality', () => {
+    const recipe = gameData.recipes.get('iron-gear-wheel')!;
+    // assembling-machine-2 is Normal quality, but the speed module in it is Legendary (0.5 vs 0.2
+    // base speed effect) - the module's own quality tier must win, not the machine's.
+    const effects = computeEffects(
+      {
+        recipe,
+        machineId: 'assembling-machine-2',
+        machineQualityId: 'normal',
+        modules: [{ moduleId: 'speed-module', qualityId: 'legendary' }],
+        beaconId: null,
+        beaconQualityId: 'normal',
+        beaconCount: 0,
+        beaconModuleId: null,
+        beaconModuleQualityId: 'normal',
+      },
+      gameData,
+    );
+
+    expect(effects.speed).toBeCloseTo(0.5, 5);
+  });
+
+  it('uses the beacon module\'s own quality independently of the beacon building\'s quality', () => {
+    const recipe = gameData.recipes.get('iron-gear-wheel')!;
+    const beacon = gameData.items.get('beacon')!.beacon!;
+    const effects = computeEffects(
+      {
+        recipe,
+        machineId: 'assembling-machine-2',
+        machineQualityId: 'normal',
+        modules: [],
+        beaconId: 'beacon',
+        beaconQualityId: 'normal', // beacon building itself stays Normal (effectivity 1.5)
+        beaconCount: 1,
+        beaconModuleId: 'speed-module',
+        beaconModuleQualityId: 'legendary', // but the module inside it is Legendary (0.5 vs 0.2)
+      },
+      gameData,
+    );
+
+    const expectedSpeed = 0.5 * beacon.effectivity * beacon.moduleSlots * sumBeaconProfile(beacon.profile, 1);
     expect(effects.speed).toBeCloseTo(expectedSpeed, 5);
   });
 });

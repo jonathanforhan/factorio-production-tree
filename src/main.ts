@@ -1,14 +1,16 @@
-import { buildProductionTree, type ProductionNode } from './domain/graph';
+import { buildProductionTree, type ModuleSlotConfig, type NodeOverride, type ProductionNode } from './domain/graph';
 import { loadGameData } from './domain/loadData';
 import { computeTotals } from './domain/totals';
-import { createInitialState, Store, type AppState } from './state/store';
+import type { GameData } from './domain/types';
 import { loadPreferredMachines, savePreferredMachines } from './state/preferences';
+import { createInitialState, Store, type AppState } from './state/store';
 import { decodeStateFromHash, syncStateToUrl } from './state/url';
 import { createDefaultBuildingsControl } from './ui/defaultBuildingsControl';
 import { createNodeEditorPanel } from './ui/nodeEditorPanel';
 import { createQuantityInput } from './ui/quantityInput';
 import { createSearchSelect } from './ui/searchSelect';
 import { createSummaryPanel } from './ui/summaryPanel';
+import { showToast } from './ui/toast';
 import { createTreeView } from './ui/treeView';
 
 function findNode(node: ProductionNode, path: string): ProductionNode | null {
@@ -18,6 +20,72 @@ function findNode(node: ProductionNode, path: string): ProductionNode | null {
     if (found) return found;
   }
   return null;
+}
+
+/** True while focus is in a form field, so Ctrl/Cmd+C/V there does normal text copy/paste. */
+function isEditableTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  const tag = target.tagName;
+  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target.isContentEditable;
+}
+
+/** A copied building's full loadout - machine, per-slot modules, and beacon, each with its own
+ *  quality - ready to paste onto any other node that can actually use the same machine. */
+interface BuildingClipboard {
+  machineId: string;
+  machineQualityId: string;
+  modules: ModuleSlotConfig[];
+  beaconId: string | null;
+  beaconQualityId: string;
+  beaconCount: number;
+  beaconModuleId: string | null;
+  beaconModuleQualityId: string;
+}
+
+let buildingClipboard: BuildingClipboard | null = null;
+
+function copyBuildingConfig(node: ProductionNode, gameData: GameData): void {
+  if (!node.machineId) return;
+  buildingClipboard = {
+    machineId: node.machineId,
+    machineQualityId: node.machineQualityId,
+    modules: node.modules.map((slot) => ({ ...slot })),
+    beaconId: node.beaconId,
+    beaconQualityId: node.beaconQualityId,
+    beaconCount: node.beaconCount,
+    beaconModuleId: node.beaconModuleId,
+    beaconModuleQualityId: node.beaconModuleQualityId,
+  };
+  const machineName = gameData.items.get(node.machineId)?.name ?? node.machineId;
+  showToast(`Copied ${machineName} config`);
+}
+
+function pasteBuildingConfig(
+  node: ProductionNode,
+  gameData: GameData,
+  onPatch: (path: string, patch: Partial<NodeOverride>) => void,
+): void {
+  if (!buildingClipboard) {
+    showToast('Nothing copied yet - select a building and press Ctrl/Cmd+C first', 'error');
+    return;
+  }
+  const clip = buildingClipboard;
+  const machineName = gameData.items.get(clip.machineId)?.name ?? clip.machineId;
+  if (!node.recipe || !node.recipe.producers.includes(clip.machineId)) {
+    showToast(`Can't paste here - this production step can't use "${machineName}"`, 'error');
+    return;
+  }
+  onPatch(node.path, {
+    machineId: clip.machineId,
+    machineQuality: clip.machineQualityId,
+    modules: clip.modules.map((slot) => ({ ...slot })),
+    beaconId: clip.beaconId,
+    beaconQuality: clip.beaconQualityId,
+    beaconCount: clip.beaconCount,
+    beaconModuleId: clip.beaconModuleId,
+    beaconModuleQuality: clip.beaconModuleQualityId,
+  });
+  showToast(`Pasted ${machineName} config`);
 }
 
 async function main(): Promise<void> {
@@ -129,6 +197,22 @@ async function main(): Promise<void> {
   window.addEventListener('resize', () => {
     const state = store.getState();
     if (state.itemId) treeView.render(currentRoot, gameData, state.selectedPath);
+  });
+
+  window.addEventListener('keydown', (e) => {
+    const key = e.key.toLowerCase();
+    const isCopyKey = (e.ctrlKey || e.metaKey) && key === 'c';
+    const isPasteKey = (e.ctrlKey || e.metaKey) && key === 'v';
+    if (!isCopyKey && !isPasteKey) return;
+    if (isEditableTarget(e.target)) return; // let normal text copy/paste happen in form fields
+
+    const state = store.getState();
+    const node = state.selectedPath && currentRoot ? findNode(currentRoot, state.selectedPath) : null;
+    if (!node?.machineId) return;
+
+    e.preventDefault();
+    if (isCopyKey) copyBuildingConfig(node, gameData);
+    else pasteBuildingConfig(node, gameData, (path, patch) => store.patchOverride(path, patch));
   });
 }
 

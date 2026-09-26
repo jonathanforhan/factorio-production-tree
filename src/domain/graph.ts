@@ -3,18 +3,30 @@
 // place it's needed (matching the visual "branch" the UI draws) - totals.ts is what merges
 // duplicate occurrences back into an accurate global building count.
 
-import { computeChildRate, computeEffects, computeMachineRequirement, zeroEffects, type EffectTotals } from './calc';
+import {
+  computeChildRate,
+  computeEffects,
+  computeMachineRequirement,
+  zeroEffects,
+  type EffectTotals,
+  type ModuleSlotConfig,
+} from './calc';
 import { pickDefaultMachine, pickDefaultRecipe } from './loadData';
 import { NORMAL_QUALITY, type GameData, type RecipeDef } from './types';
+
+export type { ModuleSlotConfig };
 
 export interface NodeOverride {
   recipeId?: string;
   machineId?: string;
-  quality?: string;
-  modules?: (string | null)[];
+  machineQuality?: string;
+  /** Full replacement for every module slot - always sized to the current machine's slot count. */
+  modules?: ModuleSlotConfig[];
   beaconId?: string | null;
+  beaconQuality?: string;
   beaconCount?: number;
   beaconModuleId?: string | null;
+  beaconModuleQuality?: string;
 }
 
 export type OverrideMap = Map<string, NodeOverride>;
@@ -27,11 +39,13 @@ export interface ProductionNode {
   ratePerSec: number;
   recipe?: RecipeDef;
   machineId?: string;
-  qualityId: string;
-  modules: (string | null)[];
+  machineQualityId: string;
+  modules: ModuleSlotConfig[];
   beaconId: string | null;
+  beaconQualityId: string;
   beaconCount: number;
   beaconModuleId: string | null;
+  beaconModuleQualityId: string;
   machineCount: number;
   powerUsageKw: number;
   pollutionPerMinute: number;
@@ -62,7 +76,6 @@ function leafNode(
   itemId: string,
   ratePerSec: number,
   recipe: RecipeDef | undefined,
-  qualityId: string,
   truncatedCycle: boolean,
 ): ProductionNode {
   return {
@@ -71,11 +84,13 @@ function leafNode(
     ratePerSec,
     recipe,
     machineId: undefined,
-    qualityId,
+    machineQualityId: NORMAL_QUALITY,
     modules: [],
     beaconId: null,
+    beaconQualityId: NORMAL_QUALITY,
     beaconCount: 0,
     beaconModuleId: null,
+    beaconModuleQualityId: NORMAL_QUALITY,
     machineCount: 0,
     powerUsageKw: 0,
     pollutionPerMinute: 0,
@@ -96,27 +111,41 @@ export function buildProductionTree(
   ancestors: ReadonlySet<string> = new Set(),
 ): ProductionNode {
   const override = overrides.get(path);
-  const qualityId = override?.quality ?? NORMAL_QUALITY;
   const recipe = resolveRecipe(itemId, gameData, override?.recipeId);
 
   if (!recipe || ancestors.has(itemId) || ancestors.size >= MAX_DEPTH) {
-    return leafNode(path, itemId, ratePerSec, recipe, qualityId, ancestors.has(itemId));
+    return leafNode(path, itemId, ratePerSec, recipe, ancestors.has(itemId));
   }
 
   const machineId = override?.machineId ?? pickDefaultMachine(recipe, gameData, preferredMachineIds);
   const machine = machineId ? gameData.items.get(machineId)?.machine : undefined;
   if (!machineId || !machine) {
     // e.g. passive recipes like spoilage that have no producing building at all.
-    return leafNode(path, itemId, ratePerSec, recipe, qualityId, false);
+    return leafNode(path, itemId, ratePerSec, recipe, false);
   }
 
-  const modules = override?.modules ?? new Array(machine.moduleSlots).fill(null);
+  const machineQualityId = override?.machineQuality ?? NORMAL_QUALITY;
+  const modules =
+    override?.modules ??
+    Array.from({ length: machine.moduleSlots }, () => ({ moduleId: null, qualityId: NORMAL_QUALITY }));
   const beaconId = override?.beaconId ?? null;
+  const beaconQualityId = override?.beaconQuality ?? NORMAL_QUALITY;
   const beaconCount = override?.beaconCount ?? 0;
   const beaconModuleId = override?.beaconModuleId ?? null;
+  const beaconModuleQualityId = override?.beaconModuleQuality ?? NORMAL_QUALITY;
 
   const effects = computeEffects(
-    { recipe, machineId, qualityId, modules, beaconId, beaconCount, beaconModuleId },
+    {
+      recipe,
+      machineId,
+      machineQualityId,
+      modules,
+      beaconId,
+      beaconQualityId,
+      beaconCount,
+      beaconModuleId,
+      beaconModuleQualityId,
+    },
     gameData,
   );
   const { machineCount, powerUsageKw, pollutionPerMinute } = computeMachineRequirement(
@@ -124,7 +153,7 @@ export function buildProductionTree(
     recipe,
     itemId,
     machine,
-    qualityId,
+    machineQualityId,
     effects,
   );
 
@@ -154,11 +183,13 @@ export function buildProductionTree(
     ratePerSec,
     recipe,
     machineId,
-    qualityId,
+    machineQualityId,
     modules,
     beaconId,
+    beaconQualityId,
     beaconCount,
     beaconModuleId,
+    beaconModuleQualityId,
     machineCount,
     powerUsageKw,
     pollutionPerMinute,

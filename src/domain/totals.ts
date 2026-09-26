@@ -44,13 +44,13 @@ export function computeTotals(root: ProductionNode): ProductionTotals {
     totalPollutionPerMinute += node.pollutionPerMinute;
 
     if (node.machineId && node.machineCount > 0) {
-      const key = `${node.machineId}|${node.qualityId}`;
+      const key = `${node.machineId}|${node.machineQualityId}`;
       const existing = machineMap.get(key);
       if (existing) existing.exactCount += node.machineCount;
       else
         machineMap.set(key, {
           machineId: node.machineId,
-          qualityId: node.qualityId,
+          qualityId: node.machineQualityId,
           exactCount: node.machineCount,
           buildingsNeeded: 0,
         });

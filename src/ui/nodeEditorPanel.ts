@@ -1,8 +1,8 @@
 // The "editable branch" panel: lets the user change a production step's recipe, machine,
 // quality tier, module loadout, and beacons. Rebuilt fresh on every update() call.
 
-import type { NodeOverride, ProductionNode } from '../domain/graph';
-import type { GameData } from '../domain/types';
+import type { ModuleSlotConfig, NodeOverride, ProductionNode } from '../domain/graph';
+import { NORMAL_QUALITY, type GameData } from '../domain/types';
 import { formatNumber, formatPercent, formatPower, titleCase } from './format';
 import { createIcon } from './icon';
 
@@ -33,6 +33,16 @@ function labeledSelect(labelText: string): { row: HTMLLabelElement; select: HTML
   const select = document.createElement('select');
   row.append(label, select);
   return { row, select };
+}
+
+function fillQualityOptions(select: HTMLSelectElement, gameData: GameData, currentQualityId: string): void {
+  for (const quality of gameData.qualities) {
+    const opt = document.createElement('option');
+    opt.value = quality.id;
+    opt.textContent = quality.name;
+    opt.selected = quality.id === currentQualityId;
+    select.appendChild(opt);
+  }
 }
 
 export function createNodeEditorPanel(onPatch: PatchFn, onReset: ResetFn, onClose: () => void): NodeEditorPanel {
@@ -122,18 +132,18 @@ export function createNodeEditorPanel(onPatch: PatchFn, onReset: ResetFn, onClos
       container.appendChild(wrap);
     }
 
-    // --- Quality ---
+    // --- Building quality ---
     {
-      const { wrap, body } = section('Quality');
+      const { wrap, body } = section('Building quality');
       const group = document.createElement('div');
       group.className = 'fpt-editor__quality-group';
       for (const quality of gameData.qualities) {
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = `fpt-editor__quality-btn fpt-editor__quality-btn--${quality.id}`;
-        btn.classList.toggle('is-active', quality.id === node.qualityId);
+        btn.classList.toggle('is-active', quality.id === node.machineQualityId);
         btn.textContent = quality.name;
-        btn.addEventListener('click', () => onPatch(node.path, { quality: quality.id }));
+        btn.addEventListener('click', () => onPatch(node.path, { machineQuality: quality.id }));
         group.appendChild(btn);
       }
       body.appendChild(group);
@@ -153,24 +163,49 @@ export function createNodeEditorPanel(onPatch: PatchFn, onReset: ResetFn, onClos
       } else {
         const moduleItems = [...gameData.items.values()].filter((i) => i.module);
         for (let slot = 0; slot < machine.moduleSlots; slot++) {
-          const { row, select } = labeledSelect(`Slot ${slot + 1}`);
+          const slotRow = document.createElement('div');
+          slotRow.className = 'fpt-editor__module-slot';
+
+          const label = document.createElement('span');
+          label.className = 'fpt-editor__module-slot-label';
+          label.textContent = `${slot + 1}`;
+
+          const moduleSelect = document.createElement('select');
           const emptyOpt = document.createElement('option');
           emptyOpt.value = '';
           emptyOpt.textContent = 'Empty';
-          select.appendChild(emptyOpt);
+          moduleSelect.appendChild(emptyOpt);
+          const currentSlot: ModuleSlotConfig | undefined = node.modules[slot];
           for (const moduleItem of moduleItems) {
             const opt = document.createElement('option');
             opt.value = moduleItem.id;
             opt.textContent = moduleItem.name;
-            opt.selected = node.modules[slot] === moduleItem.id;
-            select.appendChild(opt);
+            opt.selected = currentSlot?.moduleId === moduleItem.id;
+            moduleSelect.appendChild(opt);
           }
-          select.addEventListener('change', () => {
-            const nextModules = [...node.modules];
-            nextModules[slot] = select.value || null;
+          moduleSelect.addEventListener('change', () => {
+            const nextModules = node.modules.map((slotConfig, i): ModuleSlotConfig =>
+              i === slot ? { moduleId: moduleSelect.value || null, qualityId: NORMAL_QUALITY } : slotConfig,
+            );
             onPatch(node.path, { modules: nextModules });
           });
-          body.appendChild(row);
+
+          slotRow.append(label, moduleSelect);
+
+          if (currentSlot?.moduleId) {
+            const qualitySelect = document.createElement('select');
+            qualitySelect.className = 'fpt-editor__module-slot-quality';
+            fillQualityOptions(qualitySelect, gameData, currentSlot.qualityId);
+            qualitySelect.addEventListener('change', () => {
+              const nextModules = node.modules.map((slotConfig, i): ModuleSlotConfig =>
+                i === slot ? { ...slotConfig, qualityId: qualitySelect.value } : slotConfig,
+              );
+              onPatch(node.path, { modules: nextModules });
+            });
+            slotRow.appendChild(qualitySelect);
+          }
+
+          body.appendChild(slotRow);
         }
       }
       container.appendChild(wrap);
@@ -203,6 +238,13 @@ export function createNodeEditorPanel(onPatch: PatchFn, onReset: ResetFn, onClos
         countRow.append(countLabel, countInput);
         body.appendChild(countRow);
 
+        const { row: beaconQualityRow, select: beaconQualitySelect } = labeledSelect('Beacon quality');
+        fillQualityOptions(beaconQualitySelect, gameData, node.beaconQualityId);
+        beaconQualitySelect.addEventListener('change', () => {
+          onPatch(node.path, { beaconQuality: beaconQualitySelect.value });
+        });
+        body.appendChild(beaconQualityRow);
+
         const { row: moduleRow, select: moduleSelect } = labeledSelect('Beacon module');
         const moduleItems = [...gameData.items.values()].filter((i) => i.module);
         for (const moduleItem of moduleItems) {
@@ -213,9 +255,23 @@ export function createNodeEditorPanel(onPatch: PatchFn, onReset: ResetFn, onClos
           moduleSelect.appendChild(opt);
         }
         moduleSelect.addEventListener('change', () => {
-          onPatch(node.path, { beaconModuleId: moduleSelect.value, beaconId: gameData.defaultBeaconId });
+          onPatch(node.path, {
+            beaconModuleId: moduleSelect.value,
+            beaconId: gameData.defaultBeaconId,
+            beaconModuleQuality: NORMAL_QUALITY,
+          });
         });
         body.appendChild(moduleRow);
+
+        if (node.beaconModuleId) {
+          const { row: beaconModuleQualityRow, select: beaconModuleQualitySelect } =
+            labeledSelect('Beacon module quality');
+          fillQualityOptions(beaconModuleQualitySelect, gameData, node.beaconModuleQualityId);
+          beaconModuleQualitySelect.addEventListener('change', () => {
+            onPatch(node.path, { beaconModuleQuality: beaconModuleQualitySelect.value });
+          });
+          body.appendChild(beaconModuleQualityRow);
+        }
 
         container.appendChild(wrap);
       }
